@@ -8,6 +8,9 @@ module Mongoid #:nodoc:
       class Many < Relations::Many
         include Batch
 
+        delegate :avg, :count, :max, :min, :sum, :to => :criteria
+        delegate :bind_one, :unbind_one, :to => :binding
+
         # Appends a document or array of documents to the relation. Will set
         # the parent and update the index in the process.
         #
@@ -21,13 +24,16 @@ module Mongoid #:nodoc:
         #   person.posts.concat([ post_one, post_two ])
         #
         # @param [ Document, Array<Document> ] *args Any number of documents.
+        #
+        # @return [ Array<Document> ] The loaded docs.
+        #
+        # @since 2.0.0.beta.1
         def <<(*args)
-          options = default_options(args)
           batched do
             args.flatten.each do |doc|
-              return doc unless doc
-              append(doc, options)
-              doc.save if base.persisted? && !options[:binding]
+              next unless doc
+              append(doc)
+              doc.save if base.persisted?
             end
           end
         end
@@ -44,20 +50,37 @@ module Mongoid #:nodoc:
         # @example Bind the relation.
         #   person.posts.bind
         #
-        # @param [ Hash ] options The options to bind with.
-        #
-        # @option options [ true, false ] :binding Are we in build mode?
-        # @option options [ true, false ] :continue Continue binding the
-        #   inverse?
-        #
-        # @since 2.0.0.rc.1
-        def bind(options = {})
-          binding.bind(options)
-          target.map { |doc| doc.save } if base.persisted? && !options[:binding]
+        # @since 2.1.0
+        def bind
+          batched do
+            target.in_memory do |doc|
+              bind_one(doc)
+              doc.save if base.persisted?
+            end
+          end
         end
 
-        alias :concat :<<
-        alias :push :<<
+        # Build a new document from the attributes and append it to this
+        # relation without saving.
+        #
+        # @example Build a new document on the relation.
+        #   person.posts.build(:title => "A new post")
+        #
+        # @param [ Hash ] attributes The attributes of the new document.
+        # @param [ Class ] type The optional subclass to build.
+        #
+        # @return [ Document ] The new document.
+        #
+        # @since 2.0.0.beta.1
+        def build(attributes = {}, type = nil)
+          Factory.build(type || klass, attributes).tap do |doc|
+            # @todo: Durran: Was this needed?
+            # doc.identify
+            append(doc)
+            yield(doc) if block_given?
+          end
+        end
+        alias :new :build
 
         # Clear the relation. Will delete the documents from the db if they are
         # already persisted.
@@ -66,24 +89,14 @@ module Mongoid #:nodoc:
         #   person.posts.clear
         #
         # @return [ Many ] The relation emptied.
-        def clear(options = {})
-          load! and tap do |relation|
-            relation.unbind(default_options(options))
-            target.clear
+        #
+        # @since 2.0.0.beta.1
+        def clear
+          criteria.delete_all
+          target.clear do |doc|
+            unbind_one(doc)
+            doc.destroyed = true
           end
-        end
-
-        # Returns a count of the number of documents in the association that have
-        # actually been persisted to the database.
-        #
-        # Use #size if you want the total number of documents in memory.
-        #
-        # @example Get the count of persisted documents.
-        #   person.posts.count
-        #
-        # @return [ Integer ] The total number of persisted documents.
-        def count
-          criteria.count
         end
 
         # Creates a new document on the references many relation. This will
@@ -96,6 +109,8 @@ module Mongoid #:nodoc:
         # @param [ Class ] type The optional type of document to create.
         #
         # @return [ Document ] The newly created document.
+        #
+        # @since 2.0.0.beta.1
         def create(attributes = nil, type = nil, &block)
           build(attributes, type, &block).tap do |doc|
             base.persisted? ? doc.save : raise_unsaved(doc)
@@ -115,10 +130,16 @@ module Mongoid #:nodoc:
         # @raise [ Errors::Validations ] If validation failed.
         #
         # @return [ Document ] The newly created document.
+        #
+        # @since 2.0.0.beta.1
         def create!(attributes = nil, type = nil, &block)
           build(attributes, type, &block).tap do |doc|
             base.persisted? ? doc.save! : raise_unsaved(doc)
           end
+        end
+
+        def delete
+
         end
 
         # Deletes all related documents from the database given the supplied
@@ -133,13 +154,10 @@ module Mongoid #:nodoc:
         # @param [ Hash ] conditions Optional conditions to delete with.
         #
         # @return [ Integer ] The number of documents deleted.
+        #
+        # @since 2.0.0.beta.1
         def delete_all(conditions = nil)
-          raise_mixed if klass.embedded?
-          selector = (conditions || {})[:conditions] || {}
-          target.delete_if { |doc| doc.matches?(selector) }
-          klass.delete_all(
-            :conditions => criteria.selector.merge(selector)
-          )
+          remove_all(conditions, :delete_all)
         end
 
         # Destroys all related documents from the database given the supplied
@@ -154,13 +172,14 @@ module Mongoid #:nodoc:
         # @param [ Hash ] conditions Optional conditions to destroy with.
         #
         # @return [ Integer ] The number of documents destroyd.
+        #
+        # @since 2.0.0.beta.1
         def destroy_all(conditions = nil)
-          raise_mixed if klass.embedded?
-          selector = (conditions || {})[:conditions] || {}
-          target.delete_if { |doc| doc.matches?(selector) }
-          klass.destroy_all(
-            :conditions => criteria.selector.merge(selector)
-          )
+          remove_all(conditions, :destroy_all)
+        end
+
+        def each
+          target.each { |doc| yield(doc) if block_given? }
         end
 
         # Find the matchind document on the association, either based on id or
@@ -186,6 +205,8 @@ module Mongoid #:nodoc:
         # @param [ Hash ] options The options to search with.
         #
         # @return [ Document, Criteria ] The matching document(s).
+        #
+        # @since 2.0.0.beta.1
         def find(*args)
           criteria.find(*args)
         end
@@ -199,27 +220,11 @@ module Mongoid #:nodoc:
         # @param [ Document ] base The document this relation hangs off of.
         # @param [ Array<Document> ] target The target of the relation.
         # @param [ Metadata ] metadata The relation's metadata.
+        #
+        # @since 2.0.0.beta.1
         def initialize(base, target, metadata)
-          init(base, target, metadata)
-        end
-
-        # Will load the target into an array if the target had not already been
-        # loaded.
-        #
-        # @example Load the relation into memory.
-        #   relation.load!
-        #
-        # @return [ Many ] The relation.
-        #
-        # @since 2.0.0.rc.5
-        def load!(options = {})
-          raise_mixed if klass.embedded?
-          tap do |relation|
-            unless relation.loaded?
-              relation.target = target.entries
-              relation.bind(options)
-              relation.loaded = true
-            end
+          init(base, Targets::Enumerable.new(target), metadata) do
+            raise_mixed if klass.embedded?
           end
         end
 
@@ -232,9 +237,21 @@ module Mongoid #:nodoc:
         #
         # @since 2.0.0.rc.1
         def nullify
-          clear(:binding => true, :continue => true, :nullify => true)
+          criteria.update(metadata.foreign_key => nil)
+          target.clear do |doc|
+            unbind_one(doc)
+          end
         end
         alias :nullify_all :nullify
+
+        def reset
+
+        end
+
+        def size
+          target.size
+        end
+        alias :length :size
 
         # Substitutes the supplied target documents for the existing documents
         # in the relation. If the new target is nil, perform the necessary
@@ -253,32 +270,15 @@ module Mongoid #:nodoc:
         # @return [ Many ] The relation.
         #
         # @since 2.0.0.rc.1
-        def substitute(target, options = {})
-          tap { target ? (@target = target.to_a; bind(options)) : (@target = unbind(options)) }
+        def substitute(target)
+          tap do |proxy|
+            proxy.clear
+            proxy.push(target) if target
+          end
         end
 
-        # Unbinds the base object to the inverse of the relation. This occurs
-        # when setting a side of the relation to nil.
-        #
-        # Will delete the object if necessary.
-        #
-        # @example Unbind the target.
-        #   person.posts.unbind
-        #
-        # @param [ Hash ] options The options to bind with.
-        #
-        # @option options [ true, false ] :binding Are we in build mode?
-        # @option options [ true, false ] :continue Continue binding the
-        #   inverse?
-        #
-        # @since 2.0.0.rc.1
-        def unbind(options = {})
-          binding.unbind(options)
-          unless base.new_record?
-            target.each { |doc| doc.delete } unless options[:binding]
-            target.each { |doc| doc.save } if options[:nullify]
-          end
-          []
+        def uniq
+
         end
 
         private
@@ -292,11 +292,10 @@ module Mongoid #:nodoc:
         # @param [ Document ] document The document to append to the target.
         #
         # @since 2.0.0.rc.1
-        def append(document, options = {})
-          init_target if !initialized? && !loaded?
+        def append(document)
           target.push(document)
           characterize_one(document)
-          binding.bind_one(document, options)
+          bind_one(document)
         end
 
         # Instantiate the binding associated with this relation.
@@ -309,8 +308,8 @@ module Mongoid #:nodoc:
         # @return [ Binding ] The binding.
         #
         # @since 2.0.0.rc.1
-        def binding(new_target = nil)
-          Bindings::Referenced::Many.new(base, new_target || target, metadata)
+        def binding
+          Bindings::Referenced::Many.new(base, target, metadata)
         end
 
         # Get the collection of the relation in question.
@@ -320,7 +319,7 @@ module Mongoid #:nodoc:
         #
         # @return [ Collection ] The collection of the relation.
         #
-        # @since 2.0.2, batch-relational-insert
+        # @since 2.0.2
         def collection
           klass.collection
         end
@@ -341,7 +340,7 @@ module Mongoid #:nodoc:
           if inverse.using_object_ids? || base.id.is_a?(BSON::ObjectId)
             base.id
           else
-            Mongoid::Criterion::Unconvertable.new(base.id)
+            Criterion::Unconvertable.new(base.id)
           end
         end
 
@@ -352,42 +351,11 @@ module Mongoid #:nodoc:
         #   relation.criteria
         #
         # @return [ Criteria ] A new criteria.
+        #
+        # @since 2.0.0.beta.1
         def criteria
-          raise_mixed if klass.embedded?
-          if metadata.order
-            klass.where(metadata.foreign_key => convertable).order_by(metadata.order)
-          else
-            klass.where(metadata.foreign_key => convertable)
-          end
-        end
-
-        # Tells if the target array been initialized.
-        #
-        # @example Is the target initialized?
-        #   relation.initialized?
-        #
-        # @return [ true, false ] If the target is an array.
-        #
-        # @since 2.0.0
-        def initialized?
-          !!@initialized
-        end
-
-        # Initializes the target of the proxy as an empty array instead of
-        # hitting the database.
-        #
-        # @example Initialize the target.
-        #   relation.init_target
-        #
-        # @raise [ Errors::MixedRelations ] If the class is embedded.
-        #
-        # @return [ true ] Always true.
-        #
-        # @since 2.0.0
-        def init_target
-          raise_mixed if klass.embedded?
-          @target = []
-          @initialized = true
+          criteria = klass.where(metadata.foreign_key => convertable)
+          metadata.order ? criteria.order_by(metadata.order) : criteria
         end
 
         # If the target array does not respond to the supplied method then try to
@@ -400,11 +368,43 @@ module Mongoid #:nodoc:
         # @param [ Proc ] block Optional block to pass.
         #
         # @return [ Criteria, Object ] A Criteria or return value from the target.
+        #
+        # @since 2.0.0.beta.1
         def method_missing(name, *args, &block)
-          load!(:binding => true) and return super if [].respond_to?(name)
-          klass.send(:with_scope, criteria) do
-            criteria.send(name, *args, &block)
+          if target.respond_to?(name)
+            target.send(name, *args, &block)
+          else
+            klass.send(:with_scope, criteria) do
+              criteria.send(name, *args, &block)
+            end
           end
+        end
+
+        # Deletes all related documents from the database given the supplied
+        # conditions.
+        #
+        # @example Delete all documents in the relation.
+        #   person.posts.delete_all
+        #
+        # @example Conditonally delete all documents in the relation.
+        #   person.posts.delete_all(:conditions => { :title => "Testing" })
+        #
+        # @param [ Hash ] conditions Optional conditions to delete with.
+        # @param [ Symbol ] The deletion method to call.
+        #
+        # @return [ Integer ] The number of documents deleted.
+        #
+        # @since 2.1.0
+        def remove_all(conditions = nil, method)
+          selector = (conditions || {})[:conditions] || {}
+          [ target.loaded, target.added ].each do |docs|
+            docs.delete_if do |doc|
+              if doc.matches?(selector)
+                unbind_one(doc) and true
+              end
+            end
+          end
+          klass.send(method, :conditions => criteria.selector.merge(selector))
         end
 
         class << self

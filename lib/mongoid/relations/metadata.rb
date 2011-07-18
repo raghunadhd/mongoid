@@ -399,7 +399,7 @@ module Mongoid # :nodoc:
       #
       # @since 2.0.0.rc.1
       def inverse_setter(other = nil)
-        inverse(other).to_s << "="
+        "#{inverse(other)}="
       end
 
       # Returns the name of the field in which to store the name of the class
@@ -412,11 +412,8 @@ module Mongoid # :nodoc:
       #
       # @since 2.0.0.rc.1
       def inverse_type
-        if relation.stores_foreign_key? && polymorphic?
-          (polymorphic? ? name.to_s : class_name.underscore) << "_type"
-        else
-          return nil
-        end
+        @inverse_type ||=
+          relation.stores_foreign_key? && polymorphic? ? "#{name}_type" : nil
       end
 
       # Gets the setter for the field that sets the type of document on a
@@ -429,7 +426,7 @@ module Mongoid # :nodoc:
       #
       # @since 2.0.0.rc.1
       def inverse_type_setter
-        inverse_type ? inverse_type << "=" : nil
+        @inverse_type_setter ||= inverse_type ? "#{inverse_type}=" : nil
       end
 
       # This returns the key that is to be used to grab the attributes for the
@@ -559,6 +556,32 @@ module Mongoid # :nodoc:
       # @since 2.0.0.rc.1
       def setter
         @setter ||= "#{name.to_s}="
+      end
+
+      # Returns the name of the field in which to store the name of the class
+      # for the polymorphic relation.
+      #
+      # @example Get the name of the field.
+      #   metadata.inverse_type
+      #
+      # @return [ String ] The name of the field for storing the type.
+      #
+      # @since 2.0.0.rc.1
+      def type
+        @type ||= polymorphic? ? "#{as.to_s}_type" : nil
+      end
+
+      # Gets the setter for the field that sets the type of document on a
+      # polymorphic relation.
+      #
+      # @example Get the inverse type setter.
+      #   metadata.inverse_type_setter
+      #
+      # @return [ String ] The name of the setter.
+      #
+      # @since 2.0.0.rc.1
+      def type_setter
+        @type_setter ||= type ? "#{type}=" : nil
       end
 
       # Are we validating this relation automatically?

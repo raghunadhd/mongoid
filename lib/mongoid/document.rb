@@ -129,6 +129,7 @@ module Mongoid #:nodoc:
       process(attrs) do
         yield self if block_given?
         identify
+        IdentityMap.set(self)
       end
       run_callbacks(:initialize) { self }
     end

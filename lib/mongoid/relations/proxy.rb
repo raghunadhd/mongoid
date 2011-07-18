@@ -28,9 +28,9 @@ module Mongoid # :nodoc:
       # @param [ Metadata ] metadata The relation's metadata.
       #
       # @since 2.0.0.rc.1
-      def init(base, target, metadata, &block)
+      def init(base, target, metadata)
         @base, @target, @metadata = base, target, metadata
-        block.call if block
+        yield(self) if block_given?
         extend metadata.extension if metadata.extension?
       end
 

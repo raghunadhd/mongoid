@@ -93,13 +93,13 @@ class Person
     :preferences,
     :index => true,
     :dependent => :nullify,
-    :autosave => true,
+    # :autosave => true,
     :order => :value.desc
   has_and_belongs_to_many :user_accounts
   has_and_belongs_to_many :houses
 
-  has_many :drugs, :autosave => true
-  has_one :account, :autosave => true
+  has_many :drugs#, :autosave => true
+  has_one :account#, :autosave => true
 
   has_and_belongs_to_many \
     :administrated_events,

@@ -23,8 +23,8 @@ module Mongoid # :nodoc:
           # @option options [ true, false ] :binding Are we in build mode?
           #
           # @since 2.0.0.rc.1
-          def bind(options = {})
-            target.each { |doc| bind_one(doc, options) }
+          def bind
+            target.in_memory.each { |doc| bind_one(doc) }
           end
 
           # Binds a single document with the inverse relation. Used
@@ -40,14 +40,10 @@ module Mongoid # :nodoc:
           # @option options [ true, false ] :binding Are we in build mode?
           #
           # @since 2.0.0.rc.1
-          def bind_one(doc, options = {})
-            if options[:continue]
-              doc.do_or_do_not(metadata.foreign_key_setter, base.id)
-              doc.do_or_do_not(
-                metadata.inverse_setter,
-                base,
-                OPTIONS
-              )
+          def bind_one(doc)
+            doc.do_or_do_not(metadata.foreign_key_setter, base.id)
+            if metadata.type
+              doc.send(metadata.type_setter, base.class.model_name)
             end
           end
 
@@ -64,8 +60,8 @@ module Mongoid # :nodoc:
           # @option options [ true, false ] :binding Are we in build mode?
           #
           # @since 2.0.0.rc.1
-          def unbind(options = {})
-            target.each { |doc| unbind_one(doc, options) }
+          def unbind
+            target.in_memory.each { |doc| unbind_one(doc) }
           end
 
           # Unbind a single document.
@@ -79,15 +75,18 @@ module Mongoid # :nodoc:
           # @option options [ true, false ] :binding Are we in build mode?
           #
           # @since 2.0.0.rc.1
-          def unbind_one(doc, options = {})
-            if options[:continue]
-              doc.do_or_do_not(metadata.foreign_key_setter, nil)
-              doc.do_or_do_not(
-                metadata.inverse_setter,
-                nil,
-                OPTIONS
-              )
+          def unbind_one(doc)
+            doc.do_or_do_not(metadata.foreign_key_setter, nil)
+            if metadata.type
+              doc.send(metadata.type_setter, nil)
             end
+            # if options[:continue]
+              # doc.do_or_do_not(
+                # metadata.inverse_setter,
+                # nil,
+                # OPTIONS
+              # )
+            # end
           end
         end
       end

@@ -132,6 +132,14 @@ module Mongoid #:nodoc:
           @executed = true
         end
 
+        def empty?
+          if loaded?
+            in_memory.count == 0
+          else
+            unloaded.count + added.count == 0
+          end
+        end
+
         # Initialize the new enumerable either with a criteria or an array.
         #
         # @example Initialize the enumerable with a criteria.
