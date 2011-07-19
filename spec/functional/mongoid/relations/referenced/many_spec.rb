@@ -1067,6 +1067,133 @@ describe Mongoid::Relations::Referenced::Many do
     end
   end
 
+  describe "#delete" do
+
+    let!(:person) do
+      Person.create(:ssn => "123-11-1111")
+    end
+
+    context "when the document is found" do
+
+      context "when no dependent option is set" do
+
+        context "when the document is loaded" do
+
+          let!(:drug) do
+            person.drugs.create
+          end
+
+          let!(:deleted) do
+            person.drugs.delete(drug)
+          end
+
+          it "returns the document" do
+            deleted.should eq(drug)
+          end
+
+          it "deletes the foreign key" do
+            drug.person_id.should be_nil
+          end
+
+          it "removes the document from the relation" do
+            person.drugs.should_not include(drug)
+          end
+        end
+
+        context "when the document is not loaded" do
+
+          let!(:drug) do
+            Drug.create(:person_id => person.id)
+          end
+
+          let!(:deleted) do
+            person.drugs.delete(drug)
+          end
+
+          it "returns the document" do
+            deleted.should eq(drug)
+          end
+
+          it "deletes the foreign key" do
+            drug.person_id.should be_nil
+          end
+
+          it "removes the document from the relation" do
+            person.drugs.should_not include(drug)
+          end
+        end
+      end
+
+      context "when dependent is delete" do
+
+        context "when the document is loaded" do
+
+          let!(:post) do
+            person.posts.create(:title => "test")
+          end
+
+          let!(:deleted) do
+            person.posts.delete(post)
+          end
+
+          it "returns the document" do
+            deleted.should eq(post)
+          end
+
+          it "deletes the document" do
+            post.should be_destroyed
+          end
+
+          it "removes the document from the relation" do
+            person.posts.should_not include(post)
+          end
+        end
+
+        context "when the document is not loaded" do
+
+          let!(:post) do
+            Post.create(:title => "foo", :person_id => person.id)
+          end
+
+          let!(:deleted) do
+            person.posts.delete(post)
+          end
+
+          it "returns the document" do
+            deleted.should eq(post)
+          end
+
+          it "deletes the document" do
+            post.should be_destroyed
+          end
+
+          it "removes the document from the relation" do
+            person.posts.should_not include(post)
+          end
+        end
+      end
+    end
+
+    context "when the document is not found" do
+
+      let!(:post) do
+        Post.create(:title => "foo")
+      end
+
+      let!(:deleted) do
+        person.posts.delete(post)
+      end
+
+      it "returns nil" do
+        deleted.should be_nil
+      end
+
+      it "does not delete the document" do
+        post.should be_persisted
+      end
+    end
+  end
+
   [ :delete_all, :destroy_all ].each do |method|
 
     describe "##{method}" do

@@ -513,6 +513,141 @@ describe Mongoid::Relations::Targets::Enumerable do
     end
   end
 
+  describe "#first" do
+
+    let(:person) do
+      Person.create(:ssn => "543-98-1234")
+    end
+
+    context "when the enumerable is not loaded" do
+
+      let(:criteria) do
+        Post.where(:person_id => person.id)
+      end
+
+      let(:enumerable) do
+        described_class.new(criteria)
+      end
+
+      context "when unloaded is not empty" do
+
+        let!(:post) do
+          Post.create(:person_id => person.id)
+        end
+
+        let(:first) do
+          enumerable.first
+        end
+
+        it "returns the first unloaded doc" do
+          first.should eq(post)
+        end
+
+        it "does not load the enumerable" do
+          enumerable.should_not be_loaded
+        end
+      end
+
+      context "when unloaded is empty" do
+
+        let!(:post) do
+          Post.new(:person_id => person.id)
+        end
+
+        before do
+          enumerable << post
+        end
+
+        let(:first) do
+          enumerable.first
+        end
+
+        it "returns the first unloaded doc" do
+          first.should eq(post)
+        end
+
+        it "does not load the enumerable" do
+          enumerable.should_not be_loaded
+        end
+      end
+
+      context "when unloaded and added are empty" do
+
+        let(:first) do
+          enumerable.first
+        end
+
+        it "returns nil" do
+          first.should be_nil
+        end
+
+        it "does not load the enumerable" do
+          enumerable.should_not be_loaded
+        end
+      end
+    end
+
+    context "when the enumerable is loaded" do
+
+      context "when loaded is not empty" do
+
+        let!(:post) do
+          Post.create(:person_id => person.id)
+        end
+
+        let(:enumerable) do
+          described_class.new([ post ])
+        end
+
+        let(:first) do
+          enumerable.first
+        end
+
+        it "returns the first loaded doc" do
+          first.should eq(post)
+        end
+      end
+
+      context "when loaded is empty" do
+
+        let!(:post) do
+          Post.create(:person_id => person.id)
+        end
+
+        let(:enumerable) do
+          described_class.new([])
+        end
+
+        before do
+          enumerable << post
+        end
+
+        let(:first) do
+          enumerable.first
+        end
+
+        it "returns the first added doc" do
+          first.should eq(post)
+        end
+      end
+
+      context "when loaded and added are empty" do
+
+        let(:enumerable) do
+          described_class.new([])
+        end
+
+        let(:first) do
+          enumerable.first
+        end
+
+        it "returns nil" do
+          first.should be_nil
+        end
+      end
+    end
+  end
+
   describe "#initialize" do
 
     let(:person) do
@@ -635,6 +770,141 @@ describe Mongoid::Relations::Targets::Enumerable do
       it "yields to each in memory document" do
         enumerable.in_memory do |doc|
           doc.should eq(post_two)
+        end
+      end
+    end
+  end
+
+  describe "#last" do
+
+    let(:person) do
+      Person.create(:ssn => "543-98-1234")
+    end
+
+    context "when the enumerable is not loaded" do
+
+      let(:criteria) do
+        Post.where(:person_id => person.id)
+      end
+
+      let(:enumerable) do
+        described_class.new(criteria)
+      end
+
+      context "when unloaded is not empty" do
+
+        let!(:post) do
+          Post.create(:person_id => person.id)
+        end
+
+        let(:last) do
+          enumerable.last
+        end
+
+        it "returns the last unloaded doc" do
+          last.should eq(post)
+        end
+
+        it "does not load the enumerable" do
+          enumerable.should_not be_loaded
+        end
+      end
+
+      context "when unloaded is empty" do
+
+        let!(:post) do
+          Post.new(:person_id => person.id)
+        end
+
+        before do
+          enumerable << post
+        end
+
+        let(:last) do
+          enumerable.last
+        end
+
+        it "returns the last unloaded doc" do
+          last.should eq(post)
+        end
+
+        it "does not load the enumerable" do
+          enumerable.should_not be_loaded
+        end
+      end
+
+      context "when unloaded and added are empty" do
+
+        let(:last) do
+          enumerable.last
+        end
+
+        it "returns nil" do
+          last.should be_nil
+        end
+
+        it "does not load the enumerable" do
+          enumerable.should_not be_loaded
+        end
+      end
+    end
+
+    context "when the enumerable is loaded" do
+
+      context "when loaded is not empty" do
+
+        let!(:post) do
+          Post.create(:person_id => person.id)
+        end
+
+        let(:enumerable) do
+          described_class.new([ post ])
+        end
+
+        let(:last) do
+          enumerable.last
+        end
+
+        it "returns the last loaded doc" do
+          last.should eq(post)
+        end
+      end
+
+      context "when loaded is empty" do
+
+        let!(:post) do
+          Post.create(:person_id => person.id)
+        end
+
+        let(:enumerable) do
+          described_class.new([])
+        end
+
+        before do
+          enumerable << post
+        end
+
+        let(:last) do
+          enumerable.last
+        end
+
+        it "returns the last added doc" do
+          last.should eq(post)
+        end
+      end
+
+      context "when loaded and added are empty" do
+
+        let(:enumerable) do
+          described_class.new([])
+        end
+
+        let(:last) do
+          enumerable.last
+        end
+
+        it "returns nil" do
+          last.should be_nil
         end
       end
     end
@@ -790,6 +1060,42 @@ describe Mongoid::Relations::Targets::Enumerable do
           size.should eq(2)
         end
       end
+    end
+  end
+
+  describe "#uniq" do
+
+    let(:person) do
+      Person.create(:ssn => "422-21-9687")
+    end
+
+    let!(:post) do
+      Post.create(:person_id => person.id)
+    end
+
+    let(:criteria) do
+      Post.where(:person_id => person.id)
+    end
+
+    let!(:enumerable) do
+      described_class.new(criteria)
+    end
+
+    before do
+      enumerable << post
+      enumerable.loaded << post
+    end
+
+    let!(:uniq) do
+      enumerable.uniq
+    end
+
+    it "returns the unique documents" do
+      uniq.should eq([ post ])
+    end
+
+    it "sets loaded to true" do
+      enumerable.should be_loaded
     end
   end
 end

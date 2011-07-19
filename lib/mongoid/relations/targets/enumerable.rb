@@ -69,8 +69,6 @@ module Mongoid #:nodoc:
 
         # Delete the supplied document from the enumerable.
         #
-        # @note This operation loads all documents from the database.
-        #
         # @example Delete the document.
         #   enumerable.delete(document)
         #
@@ -80,7 +78,13 @@ module Mongoid #:nodoc:
         #
         # @since 2.1.0
         def delete(document)
-          load_all! and (loaded.delete(document) || added.delete(document)).tap do |doc|
+          loaded.delete(document) || added.delete(document).tap do |doc|
+            unless doc
+              if unloaded && unloaded.where(:_id => document.id).exists?
+                yield(document) if block_given?
+                return document
+              end
+            end
             yield(doc) if block_given?
           end
         end
@@ -132,12 +136,34 @@ module Mongoid #:nodoc:
           @executed = true
         end
 
+        # Is the enumerable empty? Will determine if the count is zero based on
+        # whether or not it is loaded.
+        #
+        # @example Is the enumerable empty?
+        #   enumerable.empty?
+        #
+        # @return [ true, false ] If the enumerable is empty.
+        #
+        # @since 2.1.0
         def empty?
           if loaded?
             in_memory.count == 0
           else
             unloaded.count + added.count == 0
           end
+        end
+
+        # Get the first document in the enumerable. Will check the persisted
+        # documents first. Does not load the entire enumerable.
+        #
+        # @example Get the first document.
+        #   enumerable.first
+        #
+        # @return [ Document ] The first document found.
+        #
+        # @since 2.1.0
+        def first
+          (loaded? ? loaded.first : unloaded.first) || added.first
         end
 
         # Initialize the new enumerable either with a criteria or an array.
@@ -189,6 +215,19 @@ module Mongoid #:nodoc:
           end
         end
 
+        # Get the last document in the enumerable. Will check the new
+        # documents first. Does not load the entire enumerable.
+        #
+        # @example Get the last document.
+        #   enumerable.last
+        #
+        # @return [ Document ] The last document found.
+        #
+        # @since 2.1.0
+        def last
+          added.last || (loaded? ? loaded.last : unloaded.last)
+        end
+
         # Loads all the documents in the enumerable from the database.
         #
         # @example Load all the documents.
@@ -238,6 +277,20 @@ module Mongoid #:nodoc:
           (loaded? ? loaded.count : unloaded.count) + added.count{ |d| d.new? }
         end
         alias :length :size
+
+        # Return all the unique documents in the enumerable.
+        #
+        # @note This operation loads all documents from the database.
+        #
+        # @example Get all the unique documents.
+        #   enumerable.uniq
+        #
+        # @return [ Array<Document> ] The unique documents.
+        #
+        # @since 2.1.0
+        def uniq
+          entries.uniq
+        end
       end
     end
   end

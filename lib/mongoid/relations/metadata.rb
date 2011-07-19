@@ -491,6 +491,19 @@ module Mongoid # :nodoc:
         !!name
       end
 
+      # Does the relation have a destructive dependent option specified. This
+      # is true for :dependent => :delete and :dependent => :destroy.
+      #
+      # @example Is the relation destructive?
+      #   metadata.destructive?
+      #
+      # @return [ true, false ] If the relation is destructive.
+      #
+      # @since 2.1.0
+      def destructive?
+        @destructive ||= (dependent == :delete || dependent == :destroy)
+      end
+
       # Gets a relation nested builder associated with the relation this metadata
       # is for. Nested builders are used in conjunction with nested attributes.
       #
@@ -783,7 +796,7 @@ module Mongoid # :nodoc:
       # @since 2.0.0.rc.1
       def lookup_inverse(other)
         return nil unless other
-        other.to_a.first.relations.each_pair do |key, meta|
+        other.class.relations.each_pair do |key, meta|
           return meta.name if meta.as == name
         end
       end

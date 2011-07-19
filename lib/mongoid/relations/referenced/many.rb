@@ -8,8 +8,9 @@ module Mongoid #:nodoc:
       class Many < Relations::Many
         include Batch
 
-        delegate :avg, :count, :max, :min, :sum, :to => :criteria
+        delegate :count, :to => :criteria
         delegate :bind_one, :unbind_one, :to => :binding
+        delegate :first, :last, :length, :reset, :size, :uniq, :to => :target
 
         # Appends a document or array of documents to the relation. Will set
         # the parent and update the index in the process.
@@ -138,8 +139,29 @@ module Mongoid #:nodoc:
           end
         end
 
-        def delete
-
+        # Delete the document from the relation. This will set the foreign key
+        # on the document to nil. If the dependent options on the relation are
+        # :delete or :destroy the appropriate removal will occur.
+        #
+        # @example Delete the document.
+        #   person.posts.delete(post)
+        #
+        # @param [ Document ] document The document to remove.
+        #
+        # @return [ Document ] The matching document.
+        #
+        # @since 2.1.0
+        def delete(document)
+          target.delete(document) do |doc|
+            if doc
+              unbind_one(doc)
+              if metadata.destructive?
+                doc.send(metadata.dependent)
+              else
+                doc.save
+              end
+            end
+          end
         end
 
         # Deletes all related documents from the database given the supplied
@@ -178,6 +200,19 @@ module Mongoid #:nodoc:
           remove_all(conditions, :destroy_all)
         end
 
+        # Iterate over each document in the relation and yield to the provided
+        # block.
+        #
+        # @note This will load the entire relation into memory.
+        #
+        # @example Iterate over the documents.
+        #   person.posts.each do |post|
+        #     post.save
+        #   end
+        #
+        # @return [ Array<Document> ] The loaded docs.
+        #
+        # @since 2.1.0
         def each
           target.each { |doc| yield(doc) if block_given? }
         end
@@ -244,15 +279,6 @@ module Mongoid #:nodoc:
         end
         alias :nullify_all :nullify
 
-        def reset
-
-        end
-
-        def size
-          target.size
-        end
-        alias :length :size
-
         # Substitutes the supplied target documents for the existing documents
         # in the relation. If the new target is nil, perform the necessary
         # deletion.
@@ -275,10 +301,6 @@ module Mongoid #:nodoc:
             proxy.clear
             proxy.push(target) if target
           end
-        end
-
-        def uniq
-
         end
 
         private
