@@ -49,7 +49,7 @@ module Mongoid # :nodoc:
           tap do
             define_method("build_#{name}") do |*args|
               document = Factory.build(metadata.klass, args.first || {})
-              send("#{name}=", document, :binding => true)
+              send("#{name}=", document)
             end
           end
         end

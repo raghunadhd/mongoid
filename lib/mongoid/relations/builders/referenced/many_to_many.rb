@@ -16,15 +16,7 @@ module Mongoid # :nodoc:
           # @return [ Array<Document> ] The documents.
           def build(type = nil)
             return object.try(:dup) unless query?
-            begin
-              if metadata.order
-                metadata.klass.order_by(metadata.order).find(object)
-              else
-                metadata.klass.find(object)
-              end
-            rescue Errors::DocumentNotFound
-              return []
-            end
+            metadata.criteria(object)
           end
         end
       end

@@ -984,6 +984,23 @@ describe Mongoid::Relations::Targets::Enumerable do
     end
   end
 
+  describe "#respond_to?" do
+
+    let(:enumerable) do
+      described_class.new([])
+    end
+
+    context "when checking against array methods" do
+
+      [].methods.each do |method|
+
+        it "returns true for #{method}" do
+          enumerable.should respond_to(method)
+        end
+      end
+    end
+  end
+
   describe "#size" do
 
     let(:person) do

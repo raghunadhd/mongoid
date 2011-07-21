@@ -17,34 +17,12 @@ module Mongoid # :nodoc:
           #   game.person.bind(:continue => true)
           #   game.person = Person.new
           #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
-          #
           # @since 2.0.0.rc.1
-          def bind(options = {})
-            # inverse = metadata.inverse(target)
+          def bind
             base.send(metadata.foreign_key_setter, target.id)
             if metadata.inverse_type
               base.send(metadata.inverse_type_setter, target.class.model_name)
             end
-            # if inverse
-              # base.metadata = target.reflect_on_association(inverse)
-              # if options[:continue]
-                # if base.referenced_many?
-                  # target.do_or_do_not(
-                    # inverse, false, OPTIONS
-                  # ).push(base, :binding => true, :continue => false)
-                # else
-                  # target.do_or_do_not(
-                    # metadata.inverse_setter(target),
-                    # base,
-                    # OPTIONS
-                  # )
-                # end
-              # end
-            # end
           end
           alias :bind_one :bind
 
@@ -55,15 +33,11 @@ module Mongoid # :nodoc:
           #   game.person.unbind(:continue => true)
           #   game.person = nil
           #
-          # @param [ Hash ] options The options to pass through.
-          #
-          # @option options [ true, false ] :continue Do we continue unbinding?
-          #
           # @since 2.0.0.rc.1
-          def unbind(options = {})
+          def unbind
             base.do_or_do_not(metadata.foreign_key_setter, nil)
-            if options[:continue]
-              target.do_or_do_not(metadata.inverse_setter(target), nil, OPTIONS)
+            if metadata.inverse_type
+              base.send(metadata.inverse_type_setter, nil)
             end
           end
           alias :unbind_one :unbind

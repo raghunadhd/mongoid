@@ -17,14 +17,9 @@ module Mongoid # :nodoc:
           #   person.preferences.bind
           #   person.preferences = [ Preference.new ]
           #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
-          #
           # @since 2.0.0.rc.1
-          def bind(options = {})
-            target.each { |doc| bind_one(doc, options) }
+          def bind
+            target.each { |doc| bind_one(doc) }
           end
 
           # Binds a single document with the inverse relation. Used
@@ -34,23 +29,11 @@ module Mongoid # :nodoc:
           #   person.preferences.bind_one(preference)
           #
           # @param [ Document ] doc The single document to bind.
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
           #
           # @since 2.0.0.rc.1
-          def bind_one(doc, options = {})
-            if options[:continue]
-              inverse = metadata.inverse(target)
-              if inverse
-                doc.do_or_do_not(
-                  inverse,
-                  false,
-                  OPTIONS
-                ).push(base, :binding => true, :continue => false)
-              end
-            end
+          def bind_one(doc)
+            base.add_to_set(metadata.foreign_key, doc.id)
+            doc.add_to_set(metadata.inverse_foreign_key, base.id)
           end
 
           # Unbinds the base object and the inverse, caused by setting the
@@ -60,14 +43,9 @@ module Mongoid # :nodoc:
           #   person.preferences.unbind
           #   person.preferences = nil
           #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
-          #
           # @since 2.0.0.rc.1
-          def unbind(options = {})
-            target.each { |doc| unbind_one(doc, options) }
+          def unbind
+            target.each { |doc| unbind_one(doc) }
           end
 
           # Unbind a single document.
@@ -75,26 +53,10 @@ module Mongoid # :nodoc:
           # @example Unbind the document.
           #   person.preferences.unbind_one(document)
           #
-          # @todo Durran: Get rid of persistence operation in this method.
-          #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
-          #
           # @since 2.0.0.rc.1
-          def unbind_one(doc, options = {})
+          def unbind_one(doc)
             base.do_or_do_not(metadata.foreign_key).delete(doc.id)
-            if options[:continue]
-              inverse = metadata.inverse(target)
-              if inverse
-                doc.do_or_do_not(
-                  inverse, false, OPTIONS
-                ).delete(base, :binding => true, :continue => false)
-              end
-            else
-              base.save if base.persisted?
-            end
+            doc.do_or_do_not(metadata.inverse_foreign_key).delete(base.id)
           end
         end
       end

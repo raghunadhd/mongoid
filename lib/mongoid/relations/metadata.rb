@@ -115,6 +115,21 @@ module Mongoid # :nodoc:
         @constraint ||= Constraint.new(self)
       end
 
+      # Get the criteria that is used to query for this metadata's relation.
+      #
+      # @example Get the criteria.
+      #   metadata.criteria([ id_one, id_two ])
+      #
+      # @param [ Object ] object The foreign key used for the query.
+      #
+      # @return [ Criteria ] The criteria.
+      #
+      # @since 2.1.0
+      def criteria(object, type = nil)
+        query = relation.criteria(self, object, type)
+        order ? query.order_by(order) : query
+      end
+
       # Returns the cyclic option of the relation.
       #
       # @example Get the cyclic option.

@@ -16,11 +16,9 @@ module Mongoid # :nodoc:
           # @return [ Document ] A single document.
           def build(type = nil)
             return object unless query?
-            klass, key = metadata.klass, metadata.foreign_key
-            loaded = IdentityMap.documents_for(klass).values.detect do |doc|
-              doc.send(key) == object
-            end
-            loaded || klass.where(key => object).first
+            IdentityMap.documents_for(metadata.klass).values.detect do |doc|
+              doc.send(metadata.foreign_key) == object
+            end || metadata.criteria(object)
           end
         end
       end

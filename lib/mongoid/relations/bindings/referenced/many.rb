@@ -17,11 +17,6 @@ module Mongoid # :nodoc:
           #   person.posts.bind
           #   person.posts = [ Post.new ]
           #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
-          #
           # @since 2.0.0.rc.1
           def bind
             target.in_memory.each { |doc| bind_one(doc) }
@@ -34,10 +29,6 @@ module Mongoid # :nodoc:
           #   person.posts.bind_one(post)
           #
           # @param [ Document ] doc The single document to bind.
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
           #
           # @since 2.0.0.rc.1
           def bind_one(doc)
@@ -54,11 +45,6 @@ module Mongoid # :nodoc:
           #   person.posts.unbind
           #   person.posts = nil
           #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
-          #
           # @since 2.0.0.rc.1
           def unbind
             target.in_memory.each { |doc| unbind_one(doc) }
@@ -69,10 +55,7 @@ module Mongoid # :nodoc:
           # @example Unbind the document.
           #   person.posts.unbind_one(document)
           #
-          # @param [ Hash ] options The binding options.
-          #
-          # @option options [ true, false ] :continue Continue binding the inverse.
-          # @option options [ true, false ] :binding Are we in build mode?
+          # @param [ Document ] document The document to unbind.
           #
           # @since 2.0.0.rc.1
           def unbind_one(doc)
@@ -80,13 +63,6 @@ module Mongoid # :nodoc:
             if metadata.type
               doc.send(metadata.type_setter, nil)
             end
-            # if options[:continue]
-              # doc.do_or_do_not(
-                # metadata.inverse_setter,
-                # nil,
-                # OPTIONS
-              # )
-            # end
           end
         end
       end

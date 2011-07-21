@@ -11,10 +11,10 @@ module Mongoid #:nodoc:
 
         # The three main instance variables are collections of documents.
         #
-        # @attribute [r] added Documents that have been appended.
-        # @attribute [r] loaded Persisted documents that have been loaded.
-        # @attribute [r] unloaded A criteria representing persisted docs.
-        attr_reader :added, :loaded, :unloaded
+        # @attribute [rw] added Documents that have been appended.
+        # @attribute [rw] loaded Persisted documents that have been loaded.
+        # @attribute [rw] unloaded A criteria representing persisted docs.
+        attr_accessor :added, :loaded, :unloaded
 
         # Check if the enumerable is equal to the other object.
         #
@@ -78,9 +78,9 @@ module Mongoid #:nodoc:
         #
         # @since 2.1.0
         def delete(document)
-          loaded.delete(document) || added.delete(document).tap do |doc|
+          (loaded.delete(document) || added.delete(document)).tap do |doc|
             unless doc
-              if unloaded && unloaded.where(:_id => document.id).exists?
+              if unloaded && unloaded.klass.where(:_id => document.id).exists?
                 yield(document) if block_given?
                 return document
               end
@@ -264,6 +264,22 @@ module Mongoid #:nodoc:
           @executed = false
         end
 
+        # Does this enumerable respond to the provided method?
+        #
+        # @example Does the enumerable respond to the method?
+        #   enumerable.respond_to?(:sum)
+        #
+        # @param [ String, Symbol ] name The name of the method.
+        # @param [ true, false ] include_private Whether to include private
+        #   methods.
+        #
+        # @return [ true, false ] Whether the enumerable responds.
+        #
+        # @since 2.1.0
+        def respond_to?(name, include_private = false)
+          [].respond_to?(name, include_private) || super
+        end
+
         # Gets the total size of this enumerable. This is a combination of all
         # the persisted and unpersisted documents.
         #
@@ -290,6 +306,12 @@ module Mongoid #:nodoc:
         # @since 2.1.0
         def uniq
           entries.uniq
+        end
+
+        private
+
+        def method_missing(name, *args, &block)
+          entries.send(name, *args, &block)
         end
       end
     end

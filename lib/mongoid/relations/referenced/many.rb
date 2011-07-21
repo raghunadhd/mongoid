@@ -55,6 +55,7 @@ module Mongoid #:nodoc:
         def bind
           batched do
             target.in_memory do |doc|
+              characterize_one(doc)
               bind_one(doc)
               doc.save if base.persisted?
             end
@@ -258,8 +259,12 @@ module Mongoid #:nodoc:
         #
         # @since 2.0.0.beta.1
         def initialize(base, target, metadata)
-          init(base, Targets::Enumerable.new(target), metadata) do
+          init(base, Targets::Enumerable.new(target), metadata) do |proxy|
             raise_mixed if klass.embedded?
+            proxy.target.in_memory do |doc|
+              characterize_one(doc)
+              bind_one(doc)
+            end
           end
         end
 
@@ -284,22 +289,17 @@ module Mongoid #:nodoc:
         # deletion.
         #
         # @example Replace the relation.
-        #   person.posts.substitute(new_name)
+        #   person.posts.substitute([ new_post ])
         #
-        # @param [ Array<Document> ] target The replacement target.
-        # @param [ Hash ] options The options to bind with.
-        #
-        # @option options [ true, false ] :binding Are we in build mode?
-        # @option options [ true, false ] :continue Continue binding the
-        #   inverse?
+        # @param [ Array<Document> ] replacement The replacement target.
         #
         # @return [ Many ] The relation.
         #
         # @since 2.0.0.rc.1
-        def substitute(target)
+        def substitute(replacement)
           tap do |proxy|
             proxy.clear
-            proxy.push(target) if target
+            proxy.push(replacement) if replacement
           end
         end
 
@@ -419,6 +419,7 @@ module Mongoid #:nodoc:
         # @since 2.1.0
         def remove_all(conditions = nil, method)
           selector = (conditions || {})[:conditions] || {}
+          selector.merge!(criteria.selector)
           [ target.loaded, target.added ].each do |docs|
             docs.delete_if do |doc|
               if doc.matches?(selector)
@@ -426,7 +427,7 @@ module Mongoid #:nodoc:
               end
             end
           end
-          klass.send(method, :conditions => criteria.selector.merge(selector))
+          klass.send(method, :conditions => selector)
         end
 
         class << self
@@ -446,6 +447,10 @@ module Mongoid #:nodoc:
           # @since 2.0.0.rc.1
           def builder(meta, object, loading = false)
             Builders::Referenced::Many.new(meta, object || [], loading)
+          end
+
+          def criteria(metadata, object, type = nil)
+            (type || metadata.klass).where(metadata.foreign_key => object)
           end
 
           # Returns true if the relation is an embedded one. In this case
